@@ -1,0 +1,10 @@
+{
+  "rules": {
+    "sharedAlerts": {
+      "$userId": {
+        ".read": "auth != null && auth.uid === $userId",
+        ".write": "auth != null"
+      }
+    }
+  }
+}
