@@ -35,9 +35,9 @@ export function Settings() {
   const memberSince = user?.metadata.creationTime ? new Date(user.metadata.creationTime).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : 'Unknown';
 
   const aiProviders = [
-    { name: 'Local NLP Engine', desc: 'Built-in text analysis engine', active: true, icon: Cpu },
+    { name: 'OpenAI GPT', desc: 'Primary document analysis and chat engine', active: true, icon: Zap },
+    { name: 'Local NLP Engine', desc: 'Automatic free fallback when OpenAI is unavailable', active: false, icon: Cpu },
     { name: 'Anthropic Claude', desc: 'Excellent for long documents and reasoning', active: false, icon: Sparkles },
-    { name: 'OpenAI GPT', desc: 'Advanced language understanding', active: false, icon: Zap },
     { name: 'Google Gemini', desc: 'Multimodal document analysis', active: false, icon: Sparkles },
   ];
 

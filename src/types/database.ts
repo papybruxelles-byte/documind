@@ -42,6 +42,7 @@ export interface Document {
   language: string;
   ocr_status: ProcessingStatus;
   ai_status: ProcessingStatus;
+  ai_provider?: 'openai' | 'local' | null;
   source: string;
   keywords: string[];
   created_at: string;

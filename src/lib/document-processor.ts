@@ -25,10 +25,22 @@ const IMAGE_MIME_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/gif', 
 const PDF_MIME_TYPE = 'application/pdf';
 const DOCX_MIME_TYPE = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 const MAX_OCR_PAGES = 20;
+const PROCESSING_TIMEOUT_MS = 3 * 60 * 1000;
+
+function withTimeout<T>(promise: Promise<T>, milliseconds: number): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = window.setTimeout(
+      () => reject(new Error('Processing stopped after the 3-minute time limit.')),
+      Math.max(0, milliseconds),
+    );
+    promise.then(resolve, reject).finally(() => window.clearTimeout(timer));
+  });
+}
 
 interface UploadResult {
   documentId: string;
   error: string | null;
+  aiProvider?: 'openai' | 'local';
 }
 
 export async function processAndUploadDocument(
@@ -36,17 +48,25 @@ export async function processAndUploadDocument(
   userId: string,
   onProgress?: (stage: string) => void
 ): Promise<UploadResult> {
+  const deadline = Date.now() + PROCESSING_TIMEOUT_MS;
+  const timeRemaining = () => Math.max(0, deadline - Date.now());
+  let createdDocumentId = '';
+
   try {
     onProgress?.('Uploading file...');
     const extension = file.name.split('.').pop()?.toLowerCase() || 'file';
     const storagePath = `users/${userId}/documents/${crypto.randomUUID()}.${extension}`;
-    await uploadBytes(ref(storage, storagePath), file, { contentType: file.type || 'application/octet-stream' });
+    await withTimeout(
+      uploadBytes(ref(storage, storagePath), file, { contentType: file.type || 'application/octet-stream' }),
+      timeRemaining(),
+    );
 
     const documentRef = firestoreDoc(collection(db, 'users', userId, 'documents'));
+    createdDocumentId = documentRef.id;
     const now = new Date().toISOString();
     await setDoc(documentRef, {
       user_id: userId, title: file.name.replace(/\.[^/.]+$/, ''), category: 'Other', summary: null,
-      language: 'en', ocr_status: 'processing', ai_status: 'pending', source: 'upload', keywords: [],
+      language: 'en', ocr_status: 'processing', ai_status: 'pending', ai_provider: null, source: 'upload', keywords: [],
       created_at: now, updated_at: now, access_uids: [userId], company_id: null,
       document_files: [{ id: crypto.randomUUID(), document_id: documentRef.id, file_path: storagePath, thumbnail_path: null, pages: 1, size_bytes: file.size, mime_type: file.type || 'application/octet-stream', created_at: now }],
       document_metadata: null, document_tags: [], full_text: '', word_count: 0, chat_messages: [], notes: [], status: 'pending',
@@ -54,20 +74,48 @@ export async function processAndUploadDocument(
 
     onProgress?.('Extracting text (OCR)...');
     let extractedText = '';
-    if (file.type === PDF_MIME_TYPE || file.name.toLowerCase().endsWith('.pdf')) extractedText = await extractTextFromPdf(file, onProgress);
-    else if (IMAGE_MIME_TYPES.includes(file.type)) extractedText = await extractTextFromImage(file, onProgress);
-    else if (file.type === DOCX_MIME_TYPE || file.name.toLowerCase().endsWith('.docx')) extractedText = await extractTextFromDocx(file);
-    else if (file.type.startsWith('text/')) extractedText = await extractTextFromFile(file);
+    if (file.type === PDF_MIME_TYPE || file.name.toLowerCase().endsWith('.pdf')) extractedText = await withTimeout(extractTextFromPdf(file, onProgress), timeRemaining());
+    else if (IMAGE_MIME_TYPES.includes(file.type)) extractedText = await withTimeout(extractTextFromImage(file, onProgress), timeRemaining());
+    else if (file.type === DOCX_MIME_TYPE || file.name.toLowerCase().endsWith('.docx')) extractedText = await withTimeout(extractTextFromDocx(file), timeRemaining());
+    else if (file.type.startsWith('text/')) extractedText = await withTimeout(extractTextFromFile(file), timeRemaining());
     if (!extractedText.trim()) extractedText = `Document: ${file.name}\n\nNo readable text could be extracted from this document.`;
 
     onProgress?.('AI analyzing document...');
-    const analysis = await getProvider('local').analyze(extractedText);
+    await updateDoc(documentRef, { ocr_status: 'completed', ai_status: 'processing', updated_at: new Date().toISOString() });
+    let usedLocalAI = false;
+    const analysis = await withTimeout(
+      getProvider().analyze(
+        extractedText,
+        () => {
+          usedLocalAI = true;
+          onProgress?.('OpenAI processing failed. Starting local AI...');
+        },
+      ),
+      timeRemaining(),
+    );
     const tags = analysis.tags.map((name) => ({ tag_id: name.toLowerCase(), tags: { id: name.toLowerCase(), user_id: userId, name, color: 'blue', created_at: now } }));
     const metadata = { id: documentRef.id, document_id: documentRef.id, document_type: analysis.documentType, confidence: analysis.confidence, issuer: analysis.issuer, issue_date: analysis.issueDate, expiration_date: analysis.expirationDate, amount: analysis.amount, currency: analysis.currency, fields: analysis.fields, created_at: now };
-    await updateDoc(documentRef, { category: analysis.category, summary: analysis.summary, language: analysis.language, keywords: analysis.keywords, ocr_status: 'completed', ai_status: 'completed', updated_at: new Date().toISOString(), full_text: extractedText, word_count: extractedText.split(/\s+/).filter(Boolean).length, document_metadata: metadata, document_tags: tags });
-    onProgress?.('Done!');
-    return { documentId: documentRef.id, error: null };
-  } catch (error) { return { documentId: '', error: error instanceof Error ? error.message : 'Unable to process document' }; }
+    const aiProvider = usedLocalAI ? 'local' : 'openai';
+    await updateDoc(documentRef, { category: analysis.category, summary: analysis.summary, language: analysis.language, keywords: analysis.keywords, ocr_status: 'completed', ai_status: 'completed', ai_provider: aiProvider, updated_at: new Date().toISOString(), full_text: extractedText, word_count: extractedText.split(/\s+/).filter(Boolean).length, document_metadata: metadata, document_tags: tags });
+    onProgress?.(`Done! Processed by ${usedLocalAI ? 'local AI' : 'OpenAI'}.`);
+    return { documentId: documentRef.id, error: null, aiProvider };
+  } catch (error) {
+    if (createdDocumentId) {
+      try {
+        await updateDoc(firestoreDoc(db, 'users', userId, 'documents', createdDocumentId), {
+          ocr_status: 'failed',
+          ai_status: 'failed',
+          updated_at: new Date().toISOString(),
+        });
+      } catch {
+        // Preserve the original processing error if the status update also fails.
+      }
+    }
+    return {
+      documentId: createdDocumentId,
+      error: error instanceof Error ? error.message : 'Unable to process document',
+    };
+  }
 }
 
 /* Previous backend implementation retained temporarily for migration reference.
@@ -353,7 +401,7 @@ export async function chatWithDocument(
   documentText: string,
   summary: string
 ): Promise<string> {
-  const result = await getProvider('local').chat(question, documentText, summary);
+  const result = await getProvider().chat(question, documentText, summary);
   const userId = (await import('@/lib/firebase')).auth.currentUser?.uid;
   if (userId) {
     const reference = firestoreDoc(db, 'users', userId, 'documents', documentId);

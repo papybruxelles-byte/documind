@@ -22,7 +22,7 @@ export interface AIChatResult {
 
 export interface AIProvider {
   name: string;
-  analyze(text: string): Promise<AIAnalysisResult>;
+  analyze(text: string, onFallback?: () => void): Promise<AIAnalysisResult>;
   chat(question: string, documentText: string, summary: string): Promise<AIChatResult>;
 }
 
@@ -467,12 +467,82 @@ class LocalAIProvider implements AIProvider {
   }
 }
 
+class OpenAIProvider implements AIProvider {
+  name = 'OpenAI';
+
+  private async request<T>(path: string, body: Record<string, unknown>): Promise<T> {
+    const { auth } = await import('@/lib/firebase');
+    const user = auth.currentUser;
+    if (!user) throw new Error('You must be signed in to use Documind AI.');
+
+    const token = await user.getIdToken();
+    const baseUrl = (import.meta.env.VITE_AI_API_URL || 'http://localhost:3001').replace(/\/$/, '');
+    const response = await fetch(`${baseUrl}${path}`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+    });
+
+    const payload = await response.json().catch(() => ({})) as { error?: string };
+    if (!response.ok) {
+      throw new Error(payload.error || `Documind AI request failed (${response.status}).`);
+    }
+    return payload as T;
+  }
+
+  async analyze(text: string): Promise<AIAnalysisResult> {
+    const result = await this.request<{ analysis: AIAnalysisResult }>('/api/ai/analyze', {
+      documentText: text,
+    });
+    return result.analysis;
+  }
+
+  async chat(question: string, documentText: string, summary: string): Promise<AIChatResult> {
+    return this.request<AIChatResult>('/api/ai/chat', {
+      question,
+      documentText,
+      conversation: summary ? [{ role: 'context', content: summary }] : [],
+    });
+  }
+}
+
 const localProvider = new LocalAIProvider();
+const openaiProvider = new OpenAIProvider();
+
+class PrimaryAIProvider implements AIProvider {
+  name = 'OpenAI with local fallback';
+
+  async analyze(text: string, onFallback?: () => void): Promise<AIAnalysisResult> {
+    try {
+      return await openaiProvider.analyze(text);
+    } catch (error) {
+      console.warn('OpenAI analysis unavailable; using the local NLP engine.', error);
+      onFallback?.();
+      return localProvider.analyze(text);
+    }
+  }
+
+  async chat(question: string, documentText: string, summary: string): Promise<AIChatResult> {
+    try {
+      return await openaiProvider.chat(question, documentText, summary);
+    } catch (error) {
+      console.warn('OpenAI document chat unavailable; using the local NLP engine.', error);
+      return localProvider.chat(question, documentText, summary);
+    }
+  }
+}
+
+const primaryProvider = new PrimaryAIProvider();
 
 export const aiProviders: Record<string, AIProvider> = {
+  primary: primaryProvider,
+  openai: openaiProvider,
   local: localProvider,
 };
 
-export function getProvider(name: string = 'local'): AIProvider {
-  return aiProviders[name] || localProvider;
+export function getProvider(name: string = 'primary'): AIProvider {
+  return aiProviders[name] || primaryProvider;
 }

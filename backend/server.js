@@ -16,6 +16,7 @@ const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
 admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const openaiModel = process.env.OPENAI_MODEL || 'gpt-5.6-sol';
 const app = express();
 const allowedOrigins = (process.env.ALLOWED_ORIGINS || 'http://localhost:5173')
   .split(',')
@@ -53,26 +54,56 @@ function parseJsonResponse(responseText) {
   try {
     return JSON.parse(clean);
   } catch {
-    return { summary: responseText.trim(), category: 'Other', documentType: 'Document' };
+    return { summary: responseText.trim() };
   }
 }
 
-const documentAnalysisInstructions = `You are DocuMind, a careful document-analysis assistant.
+const documentCategories = new Set([
+  'Invoice', 'Medical Report', 'Bank Statement', 'Passport', 'Driver License',
+  'Tax', 'Insurance', 'Employment Contract', 'Birth Certificate', 'Receipt',
+  'Utility Bill', 'Academic', 'Legal', 'Other',
+]);
+
+function normalizeAnalysis(value) {
+  const analysis = value && typeof value === 'object' ? value : {};
+  const category = documentCategories.has(analysis.category) ? analysis.category : 'Other';
+  const confidence = Number(analysis.confidence);
+  return {
+    category,
+    summary: text(analysis.summary, 2000) || 'No summary was generated.',
+    documentType: text(analysis.documentType, 120) || category,
+    confidence: Number.isFinite(confidence) ? Math.min(1, Math.max(0, confidence)) : 0.5,
+    issuer: text(analysis.issuer, 200) || null,
+    issueDate: text(analysis.issueDate, 20) || null,
+    expirationDate: text(analysis.expirationDate, 20) || null,
+    amount: Number.isFinite(Number(analysis.amount)) ? Number(analysis.amount) : null,
+    currency: text(analysis.currency, 8) || 'USD',
+    fields: analysis.fields && typeof analysis.fields === 'object' ? analysis.fields : {},
+    tags: Array.isArray(analysis.tags) ? analysis.tags.map((item) => text(item, 60)).filter(Boolean).slice(0, 8) : [],
+    keywords: Array.isArray(analysis.keywords) ? analysis.keywords.map((item) => text(item, 60)).filter(Boolean).slice(0, 12) : [],
+    language: text(analysis.language, 8) || 'en',
+  };
+}
+
+const documentAnalysisInstructions = `You are DocuMind, the primary document-analysis engine.
 Analyze only the provided document text. Never invent missing values.
 Return valid JSON only, without markdown, using exactly this shape:
 {
-  "documentType": "string",
-  "category": "Invoice|Receipt|Contract|Letter|Report|Other",
+  "category": "Invoice|Medical Report|Bank Statement|Passport|Driver License|Tax|Insurance|Employment Contract|Birth Certificate|Receipt|Utility Bill|Academic|Legal|Other",
   "summary": "string",
-  "language": "en|fr",
+  "documentType": "string",
+  "confidence": 0.0,
   "issuer": "string|null",
-  "documentDate": "YYYY-MM-DD|null",
-  "deadline": "YYYY-MM-DD|null",
-  "requiresResponse": true,
-  "recommendations": ["string"],
+  "issueDate": "YYYY-MM-DD|null",
+  "expirationDate": "YYYY-MM-DD|null",
+  "amount": "number|null",
+  "currency": "ISO 4217 currency code",
+  "fields": { "key": "value" },
+  "tags": ["string"],
   "keywords": ["string"],
-  "extractedFields": { "key": "value" }
-}`;
+  "language": "ISO 639-1 language code"
+}
+Keep the summary concise. Confidence must be between 0 and 1. Use null when a value is absent.`;
 
 app.get('/health', (_req, res) => res.json({ status: 'ok' }));
 
@@ -82,14 +113,14 @@ app.post('/api/ai/analyze', requireFirebaseUser, async (req, res, next) => {
     if (!documentText) return res.status(400).json({ error: 'documentText is required.' });
 
     const response = await openai.responses.create({
-      model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
+      model: openaiModel,
       store: false,
       instructions: documentAnalysisInstructions,
       input: `Document text:\n\n${documentText}`,
       max_output_tokens: 1800,
     });
 
-    return res.json({ analysis: parseJsonResponse(response.output_text || '') });
+    return res.json({ analysis: normalizeAnalysis(parseJsonResponse(response.output_text || '')) });
   } catch (error) {
     return next(error);
   }
@@ -105,7 +136,7 @@ app.post('/api/ai/chat', requireFirebaseUser, async (req, res, next) => {
     }
 
     const response = await openai.responses.create({
-      model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
+      model: openaiModel,
       store: false,
       instructions: 'You are DocuMind. Answer questions using only the supplied document. If the answer is not in it, say so clearly. Reply in the document language (English or French).',
       input: `Document text:\n${documentText}\n\nRecent conversation:\n${JSON.stringify(conversation)}\n\nUser question: ${question}`,

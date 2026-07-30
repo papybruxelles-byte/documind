@@ -46,7 +46,12 @@ export function UploadModal({ open, onClose, onComplete }: UploadModalProps) {
         idx === i
           ? result.error
             ? { ...u, status: 'error', error: result.error, stage: 'Failed' }
-            : { ...u, status: 'done', stage: 'Complete', documentId: result.documentId }
+            : {
+                ...u,
+                status: 'done',
+                stage: `Completed by ${result.aiProvider === 'local' ? 'local AI' : 'OpenAI'}.`,
+                documentId: result.documentId,
+              }
           : u
       ));
     }
@@ -155,12 +160,18 @@ export function UploadModal({ open, onClose, onComplete }: UploadModalProps) {
                     {item.status === 'done' ? (
                       <>
                         <CheckCircle2 className="w-5 h-5 text-emerald-500" />
-                        <span className="text-sm font-medium text-emerald-600">Done</span>
+                        <span>
+                          <span className="block text-sm font-medium text-emerald-600">Done</span>
+                          <span className="block text-[11px] text-slate-400">{item.stage}</span>
+                        </span>
                       </>
                     ) : item.status === 'error' ? (
                       <>
                         <AlertCircle className="w-5 h-5 text-rose-500" />
-                        <span className="text-sm font-medium text-rose-600">Failed</span>
+                        <span>
+                          <span className="block text-sm font-medium text-rose-600">Failed</span>
+                          <span className="block max-w-48 text-[11px] text-rose-400">{item.error}</span>
+                        </span>
                       </>
                     ) : (
                       <>

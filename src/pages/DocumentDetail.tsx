@@ -212,7 +212,14 @@ export function DocumentDetail({ documentId, onBack }: DocumentDetailProps) {
   const timeline = [
     { label: 'Document uploaded', date: doc.created_at, icon: FileText, done: true },
     { label: 'OCR text extraction', date: doc.ocr_status === 'completed' ? doc.created_at : null, icon: FileSearch, done: doc.ocr_status === 'completed' },
-    { label: 'AI analysis complete', date: doc.ai_status === 'completed' ? doc.updated_at : null, icon: Sparkles, done: doc.ai_status === 'completed' },
+    {
+      label: doc.ai_status === 'completed'
+        ? `AI analysis completed by ${doc.ai_provider === 'local' ? 'local AI' : doc.ai_provider === 'openai' ? 'OpenAI' : 'AI'}`
+        : 'AI analysis',
+      date: doc.ai_status === 'completed' ? doc.updated_at : null,
+      icon: Sparkles,
+      done: doc.ai_status === 'completed',
+    },
   ];
 
   return (

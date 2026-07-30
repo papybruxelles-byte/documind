@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useDocuments, useNotifications } from '@/hooks/useData';
 import { PageHeader, SparkleBadge } from '@/components/AppShell';
 import { getCategoryIcon, getCategoryColors } from '@/lib/category-utils';
-import { FileText, TrendingUp, Bell, Clock, ArrowRight, CheckCircle2, Loader2, Upload, ScanLine, Printer, Folder, ChevronRight } from 'lucide-react';
+import { FileText, TrendingUp, Bell, Clock, ArrowRight, CheckCircle2, Loader2, AlertCircle, Upload, ScanLine, Printer, Folder, ChevronRight } from 'lucide-react';
 import type { Page } from '@/components/AppShell';
 import type { DocumentCategory } from '@/types/database';
 import { useAuth } from '@/context/AuthContext';
@@ -16,6 +16,14 @@ interface DashboardProps {
   onUpload: () => void;
   onScan: () => void;
   onPrintScan: () => void;
+}
+
+const PROCESSING_STALE_MS = 3 * 60 * 1000;
+
+function isStaleProcessing(document: { ai_status: string; ocr_status: string; updated_at: string }) {
+  const processing = document.ai_status === 'processing' || document.ocr_status === 'processing';
+  const updatedAt = new Date(document.updated_at).getTime();
+  return processing && Number.isFinite(updatedAt) && Date.now() - updatedAt >= PROCESSING_STALE_MS;
 }
 
 export function Dashboard({ onNavigate, onOpenDocument, onOpenCategory, onUpload, onScan, onPrintScan }: DashboardProps) {
@@ -49,7 +57,7 @@ export function Dashboard({ onNavigate, onOpenDocument, onOpenCategory, onUpload
 
     for (const doc of documents) {
       categoryCounts[doc.category] = (categoryCounts[doc.category] || 0) + 1;
-      if (doc.ai_status === 'processing' || doc.ocr_status === 'processing') processing++;
+      if ((doc.ai_status === 'processing' || doc.ocr_status === 'processing') && !isStaleProcessing(doc)) processing++;
     }
 
     const topCategories = Object.entries(categoryCounts)
@@ -140,7 +148,7 @@ export function Dashboard({ onNavigate, onOpenDocument, onOpenCategory, onUpload
             className="bg-white rounded-xl p-3 border border-slate-100 shadow-sm hover:shadow-md transition-all-smooth animate-fade-in-up"
             style={{ animationDelay: `${i * 0.1}s`, opacity: 0 }}
           >
-            <div className="flex items-start justify-between mb-2"><div className={`w-8 h-8 rounded-lg ${stat.bg} flex items-center justify-center`}><stat.icon className={`w-4 h-4 ${stat.icon === Loader2 && stat.value > 0 ? 'animate-spin text-amber-500' : 'text-slate-700'}`} /></div></div>
+            <div className="flex items-start justify-between mb-2"><div className={`w-8 h-8 rounded-lg ${stat.bg} flex items-center justify-center`}><stat.icon className={`w-4 h-4 ${stat.icon === Loader2 && stat.value > 0 ? 'text-amber-500' : 'text-slate-700'}`} /></div></div>
             <p className="text-2xl font-bold font-display text-slate-900 leading-none">{stat.value}</p>
             <p className="text-xs text-slate-500 mt-1">{stat.label}</p>
           </div>
@@ -250,7 +258,9 @@ export function Dashboard({ onNavigate, onOpenDocument, onOpenCategory, onUpload
               {recentDocs.map((doc) => {
                 const Icon = getCategoryIcon(doc.category);
                 const colors = getCategoryColors(doc.category);
-                const isProcessing = doc.ai_status === 'processing' || doc.ocr_status === 'processing';
+                const staleProcessing = isStaleProcessing(doc);
+                const isProcessing = (doc.ai_status === 'processing' || doc.ocr_status === 'processing') && !staleProcessing;
+                const hasFailed = doc.ai_status === 'failed' || doc.ocr_status === 'failed' || staleProcessing;
                 const isShared = Boolean(doc.shared_from);
                 return (
                   <button
@@ -270,7 +280,11 @@ export function Dashboard({ onNavigate, onOpenDocument, onOpenCategory, onUpload
                     <div className="flex items-center gap-2 flex-shrink-0">
                       {isProcessing ? (
                         <span className="flex items-center gap-1 text-xs font-medium text-amber-600 bg-amber-50 px-2.5 py-1 rounded-full">
-                          <Loader2 className="w-3 h-3 animate-spin" /> Processing
+                          <Clock className="w-3 h-3" /> Processing
+                        </span>
+                      ) : hasFailed ? (
+                        <span className="flex items-center gap-1 text-xs font-medium text-rose-600 bg-rose-50 px-2.5 py-1 rounded-full">
+                          <AlertCircle className="w-3 h-3" /> Failed
                         </span>
                       ) : (
                         <span className="flex items-center gap-1 text-xs font-medium text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-full">
