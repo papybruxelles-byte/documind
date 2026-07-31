@@ -18,14 +18,30 @@ admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const openaiModel = process.env.OPENAI_MODEL || 'gpt-5.6-sol';
 const app = express();
-const allowedOrigins = (process.env.ALLOWED_ORIGINS || 'http://localhost:5173')
+const defaultAllowedOrigins = [
+  'https://signataire.com',
+  'https://www.signataire.com',
+  'http://localhost:5173',
+];
+const allowedOrigins = (process.env.ALLOWED_ORIGINS || defaultAllowedOrigins.join(','))
   .split(',')
   .map((origin) => origin.trim())
   .filter(Boolean);
 
+function isAllowedOrigin(origin) {
+  if (!origin || allowedOrigins.includes(origin)) return true;
+
+  try {
+    const url = new URL(origin);
+    return url.protocol === 'http:' && ['localhost', '127.0.0.1'].includes(url.hostname);
+  } catch {
+    return false;
+  }
+}
+
 app.use(cors({
   origin(origin, callback) {
-    if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
+    if (isAllowedOrigin(origin)) return callback(null, true);
     return callback(new Error('Origin is not allowed.'));
   },
   methods: ['GET', 'POST'],
