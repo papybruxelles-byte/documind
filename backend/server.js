@@ -23,8 +23,8 @@ const defaultAllowedOrigins = [
   'https://www.signataire.com',
   'http://localhost:5173',
 ];
-const allowedOrigins = (process.env.ALLOWED_ORIGINS || defaultAllowedOrigins.join(','))
-  .split(',')
+const configuredAllowedOrigins = (process.env.ALLOWED_ORIGINS || '').split(',');
+const allowedOrigins = [...defaultAllowedOrigins, ...configuredAllowedOrigins]
   .map((origin) => origin.trim())
   .filter(Boolean);
 
