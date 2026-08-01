@@ -16,7 +16,11 @@ const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
 admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-const openaiModel = process.env.OPENAI_MODEL || 'gpt-5.6-sol';
+const openaiModel = process.env.OPENAI_MODEL || 'gpt-5.6-luna';
+const requestedAnalysisMaxChars = Number(process.env.AI_ANALYSIS_MAX_CHARS || 60000);
+const analysisMaxChars = Number.isFinite(requestedAnalysisMaxChars)
+  ? Math.min(120000, Math.max(10000, Math.floor(requestedAnalysisMaxChars)))
+  : 60000;
 const app = express();
 const defaultAllowedOrigins = [
   'https://signataire.com',
@@ -63,6 +67,18 @@ async function requireFirebaseUser(req, res, next) {
 
 function text(value, limit = 120000) {
   return typeof value === 'string' ? value.trim().slice(0, limit) : '';
+}
+
+function prepareAnalysisText(value) {
+  const fullText = typeof value === 'string' ? value.trim() : '';
+  if (fullText.length <= analysisMaxChars) return fullText;
+
+  // Keep the beginning for identity/context and the end for totals, dates, and signatures.
+  const omissionMarker = '\n\n[Middle section omitted to reduce AI token usage]\n\n';
+  const contentBudget = analysisMaxChars - omissionMarker.length;
+  const headLength = Math.floor(contentBudget * 0.75);
+  const tailLength = contentBudget - headLength;
+  return `${fullText.slice(0, headLength)}${omissionMarker}${fullText.slice(-tailLength)}`;
 }
 
 function parseJsonResponse(responseText) {
@@ -125,7 +141,7 @@ app.get('/health', (_req, res) => res.json({ status: 'ok' }));
 
 app.post('/api/ai/analyze', requireFirebaseUser, async (req, res, next) => {
   try {
-    const documentText = text(req.body?.documentText);
+    const documentText = prepareAnalysisText(req.body?.documentText);
     if (!documentText) return res.status(400).json({ error: 'documentText is required.' });
 
     const response = await openai.responses.create({
@@ -133,7 +149,7 @@ app.post('/api/ai/analyze', requireFirebaseUser, async (req, res, next) => {
       store: false,
       instructions: documentAnalysisInstructions,
       input: `Document text:\n\n${documentText}`,
-      max_output_tokens: 1800,
+      max_output_tokens: 1000,
     });
 
     return res.json({ analysis: normalizeAnalysis(parseJsonResponse(response.output_text || '')) });
@@ -156,7 +172,7 @@ app.post('/api/ai/chat', requireFirebaseUser, async (req, res, next) => {
       store: false,
       instructions: 'You are DocuMind. Answer questions using only the supplied document. If the answer is not in it, say so clearly. Reply in the document language (English or French).',
       input: `Document text:\n${documentText}\n\nRecent conversation:\n${JSON.stringify(conversation)}\n\nUser question: ${question}`,
-      max_output_tokens: 1000,
+      max_output_tokens: 600,
     });
 
     return res.json({ answer: response.output_text?.trim() || 'I could not generate an answer.' });
