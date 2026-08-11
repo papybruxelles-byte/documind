@@ -1,8 +1,31 @@
 import { useEffect, useState, useCallback } from 'react';
-import { collection, deleteDoc, doc, getDocs, orderBy, query, updateDoc } from 'firebase/firestore';
+import { collection, deleteDoc, doc, getDocs, orderBy, query, setDoc, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/context/AuthContext';
-import type { DocumentWithRelations, Notification, Tag } from '@/types/database';
+import type { DocumentFolder, DocumentWithRelations, Notification, Tag } from '@/types/database';
+
+export function useFolders() {
+  const { user } = useAuth();
+  const [folders, setFolders] = useState<DocumentFolder[]>([]);
+  const [loading, setLoading] = useState(true);
+  const fetchFolders = useCallback(async () => {
+    if (!user) { setFolders([]); setLoading(false); return; }
+    setLoading(true);
+    const snapshot = await getDocs(query(collection(db, 'users', user.uid, 'folders'), orderBy('created_at', 'asc')));
+    setFolders(snapshot.docs.map((item) => ({ id: item.id, ...item.data() }) as DocumentFolder));
+    setLoading(false);
+  }, [user]);
+  useEffect(() => { void fetchFolders(); }, [fetchFolders]);
+  const createFolder = useCallback(async (name: string) => {
+    if (!user || !name.trim()) return null;
+    const folderRef = doc(collection(db, 'users', user.uid, 'folders'));
+    const folder: DocumentFolder = { id: folderRef.id, user_id: user.uid, name: name.trim(), color: 'blue', created_at: new Date().toISOString() };
+    await setDoc(folderRef, folder);
+    await fetchFolders();
+    return folder;
+  }, [user, fetchFolders]);
+  return { folders, loading, createFolder, refetch: fetchFolders };
+}
 
 export function useDocuments() {
   const { user } = useAuth();
@@ -17,7 +40,7 @@ export function useDocuments() {
       setDocuments(ownDocuments.docs.map((item) => ({ id: item.id, ...item.data() }) as DocumentWithRelations));
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unable to load documents';
-      setError(message.includes('index') ? 'The shared-document index is being created in Firebase. Refresh once it is ready.' : message);
+      setError(message.includes('index') ? 'L’index des documents partagés est en cours de création dans Firebase. Actualisez la page lorsqu’il sera prêt.' : message);
     }
     setLoading(false);
   }, [user]);

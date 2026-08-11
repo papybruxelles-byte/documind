@@ -35,7 +35,7 @@ export function Notifications({ onOpenDocument }: NotificationsProps) {
       <div className="flex items-center justify-between mb-6">
         <PageHeader
           title="Notifications"
-          subtitle={`${unreadCount} unread alert${unreadCount !== 1 ? 's' : ''}`}
+          subtitle={`${unreadCount} alerte${unreadCount !== 1 ? 's' : ''} non lue${unreadCount !== 1 ? 's' : ''}`}
         />
         {unreadCount > 0 && (
           <button
@@ -43,7 +43,7 @@ export function Notifications({ onOpenDocument }: NotificationsProps) {
             className="flex items-center gap-2 px-4 py-2 rounded-xl border border-slate-200 bg-white text-sm font-medium text-slate-600 hover:bg-slate-50 transition-all-smooth"
           >
             <Check className="w-4 h-4" />
-            Mark all read
+            Tout marquer comme lu
           </button>
         )}
       </div>
@@ -58,7 +58,7 @@ export function Notifications({ onOpenDocument }: NotificationsProps) {
           <div className="w-16 h-16 mx-auto rounded-2xl bg-slate-50 flex items-center justify-center mb-4">
             <Bell className="w-8 h-8 text-slate-300" />
           </div>
-          <p className="text-slate-500 font-medium">No notifications</p>
+          <p className="text-slate-500 font-medium">Aucune notification</p>
           <p className="text-sm text-slate-400 mt-1">You're all caught up! Alerts about expiring documents will appear here.</p>
         </div>
       ) : (
@@ -118,7 +118,7 @@ export function Notifications({ onOpenDocument }: NotificationsProps) {
                     <button
                       onClick={() => handleRead(notif.id, notif.document_id)}
                       className="p-1.5 rounded-lg text-slate-400 hover:text-emerald-600 hover:bg-white/60 transition-all-smooth"
-                      title="Mark as read"
+                      title="Marquer comme lu"
                     >
                       <CheckCircle2 className="w-4 h-4" />
                     </button>
@@ -126,7 +126,7 @@ export function Notifications({ onOpenDocument }: NotificationsProps) {
                   <button
                     onClick={() => handleDelete(notif.id)}
                     className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-white/60 transition-all-smooth"
-                    title="Dismiss"
+                    title="Ignorer"
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>

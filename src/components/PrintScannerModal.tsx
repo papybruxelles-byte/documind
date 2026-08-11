@@ -269,7 +269,7 @@ export function PrintScannerModal({ open, onClose, onComplete }: PrintScannerMod
                     <p className="font-bold font-display text-slate-900">{deviceName}</p>
                     <p className="text-sm text-emerald-600 mt-1 flex items-center justify-center gap-1">
                       <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                      Connected and ready
+                      Connecté et prêt
                     </p>
                   </div>
 

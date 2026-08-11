@@ -38,6 +38,13 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 @layer utilities {
+  .workflow-action {
+    @apply inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition-colors hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 disabled:cursor-not-allowed disabled:opacity-40;
+  }
+
+  .workflow-action-primary {
+    @apply border-blue-600 bg-blue-600 text-white hover:bg-blue-700 hover:text-white;
+  }
   .font-display {
     font-family: 'Plus Jakarta Sans', sans-serif;
   }
@@ -60,6 +67,27 @@ h1, h2, h3, h4, h5, h6 {
 
   .animate-pulse-slow {
     animation: pulseSlow 3s ease-in-out infinite;
+  }
+
+  .feature-card-viewport {
+    mask-image: linear-gradient(to bottom, transparent, black 5%, black 95%, transparent);
+    -webkit-mask-image: linear-gradient(to bottom, transparent, black 5%, black 95%, transparent);
+  }
+
+  .feature-card-track {
+    animation: featureCardScroll 28s linear infinite;
+  }
+
+  .feature-card-track-down {
+    animation-direction: reverse;
+  }
+
+  .ai-sparkle {
+    animation: aiSparkleFloat 2.4s ease-in-out infinite;
+  }
+
+  .ai-sparkle > span:first-child {
+    animation: aiSparkleRing 2.4s ease-out infinite;
   }
 
   .scrollbar-thin {
@@ -130,6 +158,36 @@ h1, h2, h3, h4, h5, h6 {
 @keyframes pulseSlow {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.5; }
+}
+
+@keyframes featureCardScroll {
+  from { transform: translateY(0); }
+  to { transform: translateY(-50%); }
+}
+
+@keyframes aiSparkleFloat {
+  0%, 100% { transform: translateY(0) rotate(-4deg); filter: brightness(1); }
+  50% { transform: translateY(-4px) rotate(4deg); filter: brightness(1.35); }
+}
+
+@keyframes aiSparkleRing {
+  0% { opacity: 0.7; transform: scale(0.85); }
+  70%, 100% { opacity: 0; transform: scale(1.45); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .feature-card-track {
+    animation: none;
+  }
+
+  .ai-sparkle,
+  .ai-sparkle > span:first-child {
+    animation: none;
+  }
+
+  .feature-card-viewport {
+    overflow-y: auto;
+  }
 }
 
 .transition-all-smooth {

@@ -50,9 +50,21 @@ export interface Document {
   access_uids?: string[];
   company_id?: string | null;
   status?: 'pending' | 'in_progress' | 'closed';
+  workflow_stage?: string;
+  assigned_to?: string;
+  department?: string;
   notes?: { id: string; user_id: string; author: string; text: string; created_at: string }[];
   scheduled_actions?: { id: string; type: 'reminder' | 'meeting' | 'payment'; date: string; created_at: string }[];
   shared_from?: string;
+  folder_id?: string | null;
+}
+
+export interface DocumentFolder {
+  id: string;
+  user_id: string;
+  name: string;
+  color: string;
+  created_at: string;
 }
 
 export interface DocumentFile {

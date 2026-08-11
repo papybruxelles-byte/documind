@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import { useAuth } from '@/context/AuthContext';
-import { FileSearch, LayoutDashboard, FolderOpen, Bell, Settings, LogOut, Menu, X, Upload, Sparkles } from 'lucide-react';
+import { FileSearch, LayoutDashboard, FolderOpen, FolderPlus, Bell, Settings, LogOut, Menu, X, Upload, Sparkles } from 'lucide-react';
 
 export type Page = 'dashboard' | 'library' | 'notifications' | 'settings';
 
@@ -8,18 +8,19 @@ interface AppShellProps {
   currentPage: Page;
   onNavigate: (page: Page) => void;
   onUpload: () => void;
+  onCreateFolder?: () => void;
   children: ReactNode;
   unreadNotifications: number;
 }
 
 const navItems: { page: Page; label: string; icon: typeof LayoutDashboard }[] = [
-  { page: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { page: 'dashboard', label: 'Tableau de bord', icon: LayoutDashboard },
   { page: 'library', label: 'Documents', icon: FolderOpen },
   { page: 'notifications', label: 'Notifications', icon: Bell },
-  { page: 'settings', label: 'Settings', icon: Settings },
+  { page: 'settings', label: 'Paramètres', icon: Settings },
 ];
 
-export function AppShell({ currentPage, onNavigate, onUpload, children, unreadNotifications }: AppShellProps) {
+export function AppShell({ currentPage, onNavigate, onUpload, onCreateFolder, children, unreadNotifications }: AppShellProps) {
   const { user, signOut } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -41,8 +42,8 @@ export function AppShell({ currentPage, onNavigate, onUpload, children, unreadNo
               <FileSearch className="w-6 h-6 text-white" />
             </div>
             <div>
-              <h1 className="text-lg font-bold font-display text-slate-900">DocuMind</h1>
-              <p className="text-xs text-slate-400">Document Intelligence</p>
+              <h1 className="text-lg font-bold font-display text-slate-900">Signataire Intelligent</h1>
+              <p className="text-xs text-slate-400">Intelligence documentaire</p>
             </div>
           </div>
         </div>
@@ -53,8 +54,9 @@ export function AppShell({ currentPage, onNavigate, onUpload, children, unreadNo
             className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-semibold shadow-lg shadow-blue-500/20 hover:shadow-blue-500/30 hover:scale-[1.02] active:scale-[0.98] transition-all-smooth"
           >
             <Upload className="w-5 h-5" />
-            Upload Document
+            Importer un document
           </button>
+          {onCreateFolder && <button onClick={() => { onCreateFolder(); setSidebarOpen(false); }} className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 py-2.5 text-sm font-semibold text-slate-700 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"><FolderPlus className="h-4 w-4" />Créer un classeur</button>}
         </div>
 
         <nav className="flex-1 px-4 py-2 space-y-1">
@@ -119,7 +121,7 @@ export function AppShell({ currentPage, onNavigate, onUpload, children, unreadNo
             <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-blue-600 to-cyan-500 flex items-center justify-center">
               <FileSearch className="w-5 h-5 text-white" />
             </div>
-            <span className="font-bold font-display text-slate-900">DocuMind</span>
+            <span className="font-bold font-display text-slate-900">Signataire Intelligent</span>
           </div>
           <button
             onClick={() => setSidebarOpen(true)}

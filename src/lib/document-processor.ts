@@ -1,12 +1,12 @@
 import { getProvider } from '@/lib/ai-engine';
-import type { DocumentCategory } from '@/types/database';
 import * as pdfjs from 'pdfjs-dist';
 import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.mjs?url';
 import { createWorker } from 'tesseract.js';
 import mammoth from 'mammoth';
-import { addDoc, collection, deleteDoc, doc as firestoreDoc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
-import { deleteObject, getDownloadURL, ref, uploadBytes } from 'firebase/storage';
+import { collection, deleteDoc, doc as firestoreDoc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
+import { deleteObject, ref, uploadBytes } from 'firebase/storage';
 import { db, storage } from '@/lib/firebase';
+import { getDocumentWorkflow } from '@/lib/document-workflows';
 
 pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
@@ -78,7 +78,10 @@ export async function processAndUploadDocument(
     else if (IMAGE_MIME_TYPES.includes(file.type)) extractedText = await withTimeout(extractTextFromImage(file, onProgress), timeRemaining());
     else if (file.type === DOCX_MIME_TYPE || file.name.toLowerCase().endsWith('.docx')) extractedText = await withTimeout(extractTextFromDocx(file), timeRemaining());
     else if (file.type.startsWith('text/')) extractedText = await withTimeout(extractTextFromFile(file), timeRemaining());
-    if (!extractedText.trim()) extractedText = `Document: ${file.name}\n\nNo readable text could be extracted from this document.`;
+    const readableWords = extractedText.match(/\p{L}{2,}/gu) || [];
+    if (readableWords.length < 5) {
+      throw new Error('Aucun texte suffisamment lisible n’a pu être extrait. Vérifiez la qualité du document puis réessayez.');
+    }
 
     onProgress?.('AI analyzing document...');
     await updateDoc(documentRef, { ocr_status: 'completed', ai_status: 'processing', updated_at: new Date().toISOString() });
@@ -96,7 +99,8 @@ export async function processAndUploadDocument(
     const tags = analysis.tags.map((name) => ({ tag_id: name.toLowerCase(), tags: { id: name.toLowerCase(), user_id: userId, name, color: 'blue', created_at: now } }));
     const metadata = { id: documentRef.id, document_id: documentRef.id, document_type: analysis.documentType, confidence: analysis.confidence, issuer: analysis.issuer, issue_date: analysis.issueDate, expiration_date: analysis.expirationDate, amount: analysis.amount, currency: analysis.currency, fields: analysis.fields, created_at: now };
     const aiProvider = usedLocalAI ? 'local' : 'openai';
-    await updateDoc(documentRef, { category: analysis.category, summary: analysis.summary, language: analysis.language, keywords: analysis.keywords, ocr_status: 'completed', ai_status: 'completed', ai_provider: aiProvider, updated_at: new Date().toISOString(), full_text: extractedText, word_count: extractedText.split(/\s+/).filter(Boolean).length, document_metadata: metadata, document_tags: tags });
+    const workflow = getDocumentWorkflow(analysis.category);
+    await updateDoc(documentRef, { category: analysis.category, summary: analysis.summary, language: analysis.language, keywords: analysis.keywords, ocr_status: 'completed', ai_status: 'completed', ai_provider: aiProvider, updated_at: new Date().toISOString(), full_text: extractedText, word_count: extractedText.split(/\s+/).filter(Boolean).length, document_metadata: metadata, document_tags: tags, workflow_stage: workflow.initialStage, status: 'pending' });
     onProgress?.(`Done! Processed by ${usedLocalAI ? 'local AI' : 'OpenAI'}.`);
     return { documentId: documentRef.id, error: null, aiProvider };
   } catch (error) {
@@ -305,23 +309,30 @@ async function extractTextFromPdf(file: File, onProgress?: (stage: string) => vo
     }
 
     // PDFs without an embedded text layer are scans, so render each page for local OCR.
-    if (pageTexts.join(' ').trim().length < 20) {
+    if (pageTexts.join(' ').trim().length < Math.max(80, pdf.numPages * 40)) {
       const pagesToOcr = Math.min(pdf.numPages, MAX_OCR_PAGES);
       const ocrPages: string[] = [];
-      for (let pageNumber = 1; pageNumber <= pagesToOcr; pageNumber++) {
-        onProgress?.(`Reading scanned PDF page ${pageNumber} of ${pagesToOcr}...`);
-        const page = await pdf.getPage(pageNumber);
-        const viewport = page.getViewport({ scale: 1.75 });
-        const canvas = document.createElement('canvas');
-        canvas.width = Math.ceil(viewport.width);
-        canvas.height = Math.ceil(viewport.height);
-        const context = canvas.getContext('2d');
-        if (!context) continue;
-        await page.render({ canvas, canvasContext: context, viewport }).promise;
-        const text = await recognizeImage(canvas);
-        if (text) ocrPages.push(`Page ${pageNumber}\n${text}`);
+      onProgress?.('Initialisation de la lecture OCR en français…');
+      const worker = await createFrenchFirstOcrWorker();
+      try {
+        for (let pageNumber = 1; pageNumber <= pagesToOcr; pageNumber++) {
+          onProgress?.(`Lecture de la page numérisée ${pageNumber} sur ${pagesToOcr}…`);
+          const page = await pdf.getPage(pageNumber);
+          const viewport = page.getViewport({ scale: 2.5 });
+          const canvas = document.createElement('canvas');
+          canvas.width = Math.ceil(viewport.width);
+          canvas.height = Math.ceil(viewport.height);
+          const context = canvas.getContext('2d');
+          if (!context) continue;
+          await page.render({ canvas, canvasContext: context, viewport }).promise;
+          const { data } = await worker.recognize(canvas);
+          const text = data.text.trim();
+          if (text) ocrPages.push(`Page ${pageNumber}\n${text}`);
+        }
+      } finally {
+        await worker.terminate();
       }
-      if (pdf.numPages > MAX_OCR_PAGES) ocrPages.push(`[Only the first ${MAX_OCR_PAGES} pages were OCR processed.]`);
+      if (pdf.numPages > MAX_OCR_PAGES) ocrPages.push(`[Seules les ${MAX_OCR_PAGES} premières pages ont été lues par OCR.]`);
       return ocrPages.join('\n\n');
     }
 
@@ -332,12 +343,21 @@ async function extractTextFromPdf(file: File, onProgress?: (stage: string) => vo
 }
 
 async function extractTextFromImage(file: File, onProgress?: (stage: string) => void): Promise<string> {
-  onProgress?.('Reading image text locally...');
+  onProgress?.('Lecture du texte de l’image en français…');
   return recognizeImage(file);
 }
 
+async function createFrenchFirstOcrWorker() {
+  try {
+    return await createWorker(['fra', 'eng']);
+  } catch (error) {
+    console.warn('Le modèle OCR français est indisponible, utilisation du modèle anglais.', error);
+    return createWorker('eng');
+  }
+}
+
 async function recognizeImage(image: File | HTMLCanvasElement): Promise<string> {
-  const worker = await createWorker('eng');
+  const worker = await createFrenchFirstOcrWorker();
   try {
     const { data } = await worker.recognize(image);
     return data.text.trim();

@@ -1,4 +1,4 @@
-# Documind AI backend
+# Signataire Intelligence AI backend
 
 This is the private server to deploy on Render. It receives a Firebase ID token from the signed-in user, verifies it with Firebase Admin, then calls OpenAI. The OpenAI key remains only in Render's environment variables.
 

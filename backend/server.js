@@ -117,7 +117,7 @@ function normalizeAnalysis(value) {
   };
 }
 
-const documentAnalysisInstructions = `You are DocuMind, the primary document-analysis engine.
+const documentAnalysisInstructions = `You are Signataire Intelligence, the primary document-analysis engine.
 Analyze only the provided document text. Never invent missing values.
 Return valid JSON only, without markdown, using exactly this shape:
 {
@@ -135,7 +135,8 @@ Return valid JSON only, without markdown, using exactly this shape:
   "keywords": ["string"],
   "language": "ISO 639-1 language code"
 }
-Keep the summary concise. Confidence must be between 0 and 1. Use null when a value is absent.`;
+Detect the document language first. Write the summary, field names, tags, and keywords in that same language, prioritizing French whenever the document is in French.
+Keep the summary concise but include the document's purpose, essential facts, warnings, and requested actions. Confidence must be between 0 and 1. Use null when a value is absent.`;
 
 app.get('/health', (_req, res) => res.json({ status: 'ok' }));
 
@@ -170,7 +171,7 @@ app.post('/api/ai/chat', requireFirebaseUser, async (req, res, next) => {
     const response = await openai.responses.create({
       model: openaiModel,
       store: false,
-      instructions: 'You are DocuMind. Answer questions using only the supplied document. If the answer is not in it, say so clearly. Reply in the document language (English or French).',
+      instructions: 'You are Signataire Intelligence. Answer questions using only the supplied document. If the answer is not in it, say so clearly. Reply in the document language (English or French).',
       input: `Document text:\n${documentText}\n\nRecent conversation:\n${JSON.stringify(conversation)}\n\nUser question: ${question}`,
       max_output_tokens: 600,
     });
@@ -189,4 +190,4 @@ app.use((error, _req, res, _next) => {
 });
 
 const port = Number(process.env.PORT || 3001);
-app.listen(port, () => console.log(`DocuMind AI backend listening on port ${port}`));
+app.listen(port, () => console.log(`Signataire Intelligence AI backend listening on port ${port}`));

@@ -81,7 +81,7 @@ function detectCategory(text: string): DocumentCategory {
 }
 
 function detectLanguage(text: string): string {
-  const frenchWords = ['le', 'la', 'les', 'de', 'et', 'que', 'dans', 'pour', 'avec', 'sur'];
+  const frenchWords = ['le', 'la', 'les', 'de', 'des', 'du', 'et', 'que', 'dans', 'pour', 'avec', 'sur', 'une', 'est', 'sont', 'aux', 'par', 'tout', 'cette', 'communiqué'];
   const spanishWords = ['el', 'la', 'los', 'de', 'y', 'que', 'en', 'para', 'con', 'por'];
   const germanWords = ['der', 'die', 'das', 'und', 'von', 'mit', 'zu', 'auf', 'für', 'ist'];
   const lower = text.toLowerCase();
@@ -90,7 +90,7 @@ function detectLanguage(text: string): string {
   const countMatches = (dict: string[]) =>
     words.filter((w) => dict.includes(w.replace(/[^a-zà-ÿ]/g, ''))).length;
 
-  if (countMatches(frenchWords) > 3) return 'fr';
+  if (countMatches(frenchWords) >= 2) return 'fr';
   return 'en';
 }
 
@@ -473,7 +473,7 @@ class OpenAIProvider implements AIProvider {
   private async request<T>(path: string, body: Record<string, unknown>): Promise<T> {
     const { auth } = await import('@/lib/firebase');
     const user = auth.currentUser;
-    if (!user) throw new Error('You must be signed in to use Documind AI.');
+    if (!user) throw new Error('Vous devez être connecté pour utiliser l’IA de Signataire Intelligent.');
 
     const token = await user.getIdToken();
     const baseUrl = (import.meta.env.VITE_AI_API_URL || 'http://localhost:3001').replace(/\/$/, '');
@@ -488,7 +488,7 @@ class OpenAIProvider implements AIProvider {
 
     const payload = await response.json().catch(() => ({})) as { error?: string };
     if (!response.ok) {
-      throw new Error(payload.error || `Documind AI request failed (${response.status}).`);
+      throw new Error(payload.error || `La requête IA de Signataire Intelligent a échoué (${response.status}).`);
     }
     return payload as T;
   }

@@ -45,8 +45,8 @@ export function Library({ onOpenDocument, initialCategory = 'all' }: LibraryProp
   return (
     <div className="p-6 lg:p-8 max-w-7xl mx-auto animate-fade-in">
       <PageHeader
-        title="Document Library"
-        subtitle={`${documents.length} documents in your collection`}
+        title="Bibliothèque de documents"
+        subtitle={`${documents.length} document${documents.length !== 1 ? 's' : ''} dans votre collection`}
       />
 
       {/* Search + filters bar */}
@@ -57,7 +57,7 @@ export function Library({ onOpenDocument, initialCategory = 'all' }: LibraryProp
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by title, content, keywords, or tags..."
+            placeholder="Rechercher par titre, contenu, mot-clé ou étiquette…"
             className="w-full pl-11 pr-4 py-3 rounded-xl border border-slate-200 bg-white text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all-smooth"
           />
           {search && (
@@ -79,7 +79,7 @@ export function Library({ onOpenDocument, initialCategory = 'all' }: LibraryProp
                 : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
             }`}
           >
-            Filters
+            Filtres
             {activeFilters > 0 && (
               <span className="bg-blue-600 text-white text-xs px-1.5 rounded-full">{activeFilters}</span>
             )}
@@ -114,7 +114,7 @@ export function Library({ onOpenDocument, initialCategory = 'all' }: LibraryProp
                   : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
               }`}
             >
-              All Categories
+              Toutes les catégories
             </button>
             {DOCUMENT_CATEGORIES.map((cat) => {
               const Icon = getCategoryIcon(cat);
@@ -142,7 +142,7 @@ export function Library({ onOpenDocument, initialCategory = 'all' }: LibraryProp
       {loading ? (
         <div className="text-center py-20">
           <Loader2 className="w-8 h-8 animate-spin mx-auto text-slate-300 mb-3" />
-          <p className="text-slate-400">Loading your documents...</p>
+          <p className="text-slate-400">Chargement de vos documents…</p>
         </div>
       ) : filtered.length === 0 ? (
         <div className="text-center py-20">
@@ -150,10 +150,10 @@ export function Library({ onOpenDocument, initialCategory = 'all' }: LibraryProp
             <FileText className="w-8 h-8 text-slate-300" />
           </div>
           <p className="text-slate-500 font-medium">
-            {documents.length === 0 ? 'No documents yet' : 'No documents match your search'}
+            {documents.length === 0 ? 'Aucun document' : 'Aucun document ne correspond à votre recherche'}
           </p>
           <p className="text-sm text-slate-400 mt-1">
-            {documents.length === 0 ? 'Upload a document to get started' : 'Try adjusting your filters or search'}
+            {documents.length === 0 ? 'Importez un document pour commencer' : 'Modifiez les filtres ou votre recherche'}
           </p>
         </div>
       ) : view === 'grid' ? (
@@ -179,7 +179,7 @@ export function Library({ onOpenDocument, initialCategory = 'all' }: LibraryProp
                       </span>
                     ) : (
                       <span className="flex items-center gap-1 text-xs font-medium text-emerald-700 bg-white/90 px-2.5 py-1 rounded-full">
-                        <CheckCircle2 className="w-3 h-3" /> Ready
+                        <CheckCircle2 className="w-3 h-3" /> Prêt
                       </span>
                     )}
                   </div>

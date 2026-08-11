@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import type { User } from 'firebase/auth';
-import { createUserWithEmailAndPassword, onAuthStateChanged, signInWithEmailAndPassword, signOut as firebaseSignOut, updateProfile } from 'firebase/auth';
+import { browserSessionPersistence, createUserWithEmailAndPassword, onAuthStateChanged, setPersistence, signInWithEmailAndPassword, signOut as firebaseSignOut, updateProfile } from 'firebase/auth';
+import { FirebaseError } from 'firebase/app';
 import { auth } from '@/lib/firebase';
 import { arrayUnion, collection, doc, getDocs, query, setDoc, updateDoc, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -15,21 +16,54 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
+function getSignInError(error: unknown) {
+  if (error instanceof FirebaseError) {
+    switch (error.code) {
+      case 'auth/invalid-credential':
+      case 'auth/wrong-password':
+      case 'auth/user-not-found':
+        return 'Email or password incorrect. Try again or sign up.';
+      case 'auth/invalid-email':
+        return 'Enter a valid email address.';
+      case 'auth/too-many-requests':
+        return 'Too many failed attempts. Please wait a moment and try again.';
+      case 'auth/network-request-failed':
+        return 'Unable to connect. Check your internet connection and try again.';
+    }
+  }
+
+  return 'Unable to sign in. Please try again.';
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (nextUser) => {
-      setUser(nextUser);
-      setLoading(false);
-    });
-    return unsubscribe;
+    let active = true;
+    let unsubscribe: () => void = () => undefined;
+    void setPersistence(auth, browserSessionPersistence)
+      .catch((error) => console.error('Unable to enable session-only authentication.', error))
+      .finally(() => {
+        if (!active) return;
+        unsubscribe = onAuthStateChanged(auth, (nextUser) => {
+          setUser(nextUser);
+          setLoading(false);
+        });
+      });
+    return () => {
+      active = false;
+      unsubscribe();
+    };
   }, []);
 
   const signIn = async (email: string, password: string) => {
-    try { await signInWithEmailAndPassword(auth, email, password); return { error: null }; }
-    catch (error) { return { error: error instanceof Error ? error.message : 'Unable to sign in' }; }
+    try {
+      await signInWithEmailAndPassword(auth, email.trim(), password);
+      return { error: null };
+    } catch (error) {
+      return { error: getSignInError(error) };
+    }
   };
 
   const signUp = async (email: string, password: string, name: string, role: 'enterprise_admin' | 'individual' | 'company_member', companyCode?: string) => {

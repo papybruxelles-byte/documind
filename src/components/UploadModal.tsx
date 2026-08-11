@@ -90,8 +90,8 @@ export function UploadModal({ open, onClose, onComplete }: UploadModalProps) {
       <div className="relative w-full max-w-2xl bg-white rounded-2xl shadow-2xl animate-scale-in max-h-[90vh] flex flex-col">
         <div className="flex items-center justify-between p-6 border-b border-slate-100">
           <div>
-            <h2 className="text-xl font-bold font-display text-slate-900">Upload Documents</h2>
-            <p className="text-sm text-slate-500 mt-0.5">AI will process, summarize, and categorize your documents</p>
+            <h2 className="text-xl font-bold font-display text-slate-900">Importer des documents</h2>
+            <p className="text-sm text-slate-500 mt-0.5">L’IA traitera, résumera et classera vos documents</p>
           </div>
           <button onClick={handleClose} className="p-2 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-all-smooth">
             <X className="w-5 h-5" />
@@ -116,8 +116,8 @@ export function UploadModal({ open, onClose, onComplete }: UploadModalProps) {
                 <div className="w-16 h-16 mx-auto rounded-2xl bg-gradient-to-br from-blue-500 to-cyan-400 flex items-center justify-center mb-4 shadow-lg shadow-blue-500/20">
                   <Upload className="w-8 h-8 text-white" />
                 </div>
-                <p className="text-lg font-semibold text-slate-900 mb-1">Drop files here or click to browse</p>
-                <p className="text-sm text-slate-500">Supports PDF, Word, Excel, images, and text files</p>
+                <p className="text-lg font-semibold text-slate-900 mb-1">Déposez les fichiers ici ou cliquez pour parcourir</p>
+                <p className="text-sm text-slate-500">Formats acceptés : PDF, Word, Excel, images et fichiers texte</p>
                 <input
                   ref={inputRef}
                   type="file"
@@ -161,7 +161,7 @@ export function UploadModal({ open, onClose, onComplete }: UploadModalProps) {
                       <>
                         <CheckCircle2 className="w-5 h-5 text-emerald-500" />
                         <span>
-                          <span className="block text-sm font-medium text-emerald-600">Done</span>
+                          <span className="block text-sm font-medium text-emerald-600">Terminé</span>
                           <span className="block text-[11px] text-slate-400">{item.stage}</span>
                         </span>
                       </>
@@ -169,7 +169,7 @@ export function UploadModal({ open, onClose, onComplete }: UploadModalProps) {
                       <>
                         <AlertCircle className="w-5 h-5 text-rose-500" />
                         <span>
-                          <span className="block text-sm font-medium text-rose-600">Failed</span>
+                          <span className="block text-sm font-medium text-rose-600">Échec</span>
                           <span className="block max-w-48 text-[11px] text-rose-400">{item.error}</span>
                         </span>
                       </>
@@ -188,7 +188,7 @@ export function UploadModal({ open, onClose, onComplete }: UploadModalProps) {
                   onClick={handleClose}
                   className="w-full py-3 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-semibold hover:scale-[1.01] transition-all-smooth mt-4"
                 >
-                  View Documents
+                  Voir les documents
                 </button>
               )}
             </div>

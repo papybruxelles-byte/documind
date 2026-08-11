@@ -43,7 +43,7 @@ export function Settings() {
 
   return (
     <div className="p-6 lg:p-8 max-w-4xl mx-auto animate-fade-in">
-      <PageHeader title="Settings" subtitle="Manage your account and preferences" />
+      <PageHeader title="Paramètres" subtitle="Gérez votre compte et vos préférences" />
 
       {/* Profile */}
       <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 mb-6">
@@ -77,7 +77,7 @@ export function Settings() {
       {/* AI Providers */}
       <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 mb-6">
         <h2 className="font-semibold font-display text-slate-900 mb-1">AI Engine</h2>
-        <p className="text-sm text-slate-500 mb-4">Choose the AI provider that processes your documents</p>
+        <p className="text-sm text-slate-500 mb-4">Choisissez le fournisseur d’IA qui traite vos documents</p>
 
         <div className="space-y-3">
           {aiProviders.map((provider) => (
