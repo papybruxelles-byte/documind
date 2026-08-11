@@ -338,8 +338,10 @@ async function extractTextFromPdf(file: File, onProgress?: (stage: string) => vo
     }
 
     return pageTexts.join('\n\n');
-  } catch {
-    return '';
+  } catch (error) {
+    console.error('Échec de la lecture du PDF.', error);
+    const detail = error instanceof Error ? error.message : String(error);
+    throw new Error(`La lecture OCR du PDF a échoué : ${detail}`);
   }
 }
 
@@ -361,7 +363,12 @@ async function createFrenchFirstOcrWorker() {
     return await createWorker(['fra', 'eng'], undefined, options);
   } catch (error) {
     console.warn('Le modèle OCR français est indisponible, utilisation du modèle anglais.', error);
-    return createWorker('eng', undefined, options);
+    try {
+      return await createWorker('eng', undefined, options);
+    } catch (fallbackError) {
+      const detail = fallbackError instanceof Error ? fallbackError.message : String(fallbackError);
+      throw new Error(`Impossible de charger les ressources OCR depuis ${OCR_ASSET_BASE}. ${detail}`);
+    }
   }
 }
 
