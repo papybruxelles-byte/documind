@@ -26,13 +26,13 @@ const IMAGE_MIME_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/gif', 
 const PDF_MIME_TYPE = 'application/pdf';
 const DOCX_MIME_TYPE = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 const MAX_OCR_PAGES = 20;
-const PROCESSING_TIMEOUT_MS = 3 * 60 * 1000;
+const PROCESSING_TIMEOUT_MS = 6 * 60 * 1000;
 const OCR_ASSET_BASE = `${import.meta.env.BASE_URL.replace(/\/?$/, '/')}tesseract`;
 
 function withTimeout<T>(promise: Promise<T>, milliseconds: number): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     const timer = window.setTimeout(
-      () => reject(new Error('Processing stopped after the 3-minute time limit.')),
+      () => reject(new Error(`Le traitement a dépassé la limite de ${Math.round(PROCESSING_TIMEOUT_MS / 60_000)} minutes.`)),
       Math.max(0, milliseconds),
     );
     promise.then(resolve, reject).finally(() => window.clearTimeout(timer));
@@ -320,7 +320,7 @@ async function extractTextFromPdf(file: File, onProgress?: (stage: string) => vo
         for (let pageNumber = 1; pageNumber <= pagesToOcr; pageNumber++) {
           onProgress?.(`Lecture de la page numérisée ${pageNumber} sur ${pagesToOcr}…`);
           const page = await pdf.getPage(pageNumber);
-          const viewport = page.getViewport({ scale: 2.5 });
+          const viewport = page.getViewport({ scale: 2 });
           const canvas = document.createElement('canvas');
           canvas.width = Math.ceil(viewport.width);
           canvas.height = Math.ceil(viewport.height);
@@ -354,14 +354,14 @@ async function extractTextFromImage(file: File, onProgress?: (stage: string) => 
 async function createFrenchFirstOcrWorker() {
   const options = {
     workerPath: `${OCR_ASSET_BASE}/worker.min.js`,
-    corePath: `${OCR_ASSET_BASE}/tesseract-core-lstm.wasm.js`,
+    corePath: OCR_ASSET_BASE,
     langPath: `${OCR_ASSET_BASE}/lang`,
     workerBlobURL: false,
     gzip: true,
     errorHandler: (error: unknown) => console.error('Erreur du moteur OCR local.', error),
   };
   try {
-    return await createWorker(['fra', 'eng'], undefined, options);
+    return await createWorker('fra', undefined, options);
   } catch (error) {
     console.warn('Le modèle OCR français est indisponible, utilisation du modèle anglais.', error);
     try {
