@@ -51,7 +51,7 @@ app.use(cors({
   methods: ['GET', 'POST'],
   allowedHeaders: ['Authorization', 'Content-Type'],
 }));
-app.use(express.json({ limit: '2mb' }));
+app.use(express.json({ limit: '30mb' }));
 
 async function requireFirebaseUser(req, res, next) {
   const token = req.headers.authorization?.replace(/^Bearer\s+/i, '');
@@ -137,6 +137,44 @@ Return valid JSON only, without markdown, using exactly this shape:
 }
 Detect the document language first. Write the summary, field names, tags, and keywords in that same language, prioritizing French whenever the document is in French.
 Keep the summary concise but include the document's purpose, essential facts, warnings, and requested actions. Confidence must be between 0 and 1. Use null when a value is absent.`;
+
+const fileAnalysisInstructions = `${documentAnalysisInstructions}
+Also return an "extractedText" string containing a faithful transcription of the readable document text. Preserve the original language and do not translate the transcription. Limit extractedText to the most useful 60,000 characters.`;
+
+app.post('/api/ai/analyze-file', requireFirebaseUser, async (req, res, next) => {
+  try {
+    const filename = text(req.body?.filename, 240) || 'document.pdf';
+    const mimeType = text(req.body?.mimeType, 120) || 'application/octet-stream';
+    const fileData = typeof req.body?.fileData === 'string' ? req.body.fileData.trim() : '';
+    if (!fileData) return res.status(400).json({ error: 'fileData is required.' });
+    if (fileData.length > 28_000_000) return res.status(413).json({ error: 'Le fichier dépasse la limite serveur de 20 Mo.' });
+    if (!/^[a-zA-Z0-9+/=]+$/.test(fileData)) return res.status(400).json({ error: 'Invalid Base64 file data.' });
+
+    const dataUrl = `data:${mimeType};base64,${fileData}`;
+    const fileContent = mimeType.startsWith('image/')
+      ? { type: 'input_image', image_url: dataUrl, detail: 'high' }
+      : { type: 'input_file', filename, file_data: dataUrl, ...(mimeType === 'application/pdf' ? { detail: 'low' } : {}) };
+
+    const response = await openai.responses.create({
+      model: openaiModel,
+      store: false,
+      instructions: fileAnalysisInstructions,
+      input: [{
+        role: 'user',
+        content: [
+          fileContent,
+          { type: 'input_text', text: 'Analyse ce document. Réponds dans sa langue et retourne uniquement le JSON demandé.' },
+        ],
+      }],
+      max_output_tokens: 12000,
+    });
+
+    const parsed = parseJsonResponse(response.output_text || '');
+    return res.json({ analysis: { ...normalizeAnalysis(parsed), extractedText: text(parsed.extractedText, 60000) } });
+  } catch (error) {
+    return next(error);
+  }
+});
 
 app.get('/health', (_req, res) => res.json({ status: 'ok' }));
 

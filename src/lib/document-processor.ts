@@ -1,4 +1,4 @@
-import { getProvider } from '@/lib/ai-engine';
+import { analyzeDocumentFile, getProvider } from '@/lib/ai-engine';
 import * as pdfjs from 'pdfjs-dist';
 import { createWorker } from 'tesseract.js';
 import mammoth from 'mammoth';
@@ -74,30 +74,30 @@ export async function processAndUploadDocument(
       document_metadata: null, document_tags: [], full_text: '', word_count: 0, chat_messages: [], notes: [], status: 'pending',
     });
 
-    onProgress?.('Extracting text (OCR)...');
+    onProgress?.('Analyse sécurisée du document sur le serveur…');
     let extractedText = '';
-    if (file.type === PDF_MIME_TYPE || file.name.toLowerCase().endsWith('.pdf')) extractedText = await withTimeout(extractTextFromPdf(file, onProgress), timeRemaining());
-    else if (IMAGE_MIME_TYPES.includes(file.type)) extractedText = await withTimeout(extractTextFromImage(file, onProgress), timeRemaining());
-    else if (file.type === DOCX_MIME_TYPE || file.name.toLowerCase().endsWith('.docx')) extractedText = await withTimeout(extractTextFromDocx(file), timeRemaining());
-    else if (file.type.startsWith('text/')) extractedText = await withTimeout(extractTextFromFile(file), timeRemaining());
-    const readableWords = extractedText.match(/\p{L}{2,}/gu) || [];
-    if (readableWords.length < 5) {
-      throw new Error('Aucun texte suffisamment lisible n’a pu être extrait. Vérifiez la qualité du document puis réessayez.');
-    }
-
-    onProgress?.('AI analyzing document...');
-    await updateDoc(documentRef, { ocr_status: 'completed', ai_status: 'processing', updated_at: new Date().toISOString() });
     let usedLocalAI = false;
-    const analysis = await withTimeout(
-      getProvider().analyze(
-        extractedText,
-        () => {
-          usedLocalAI = true;
-          onProgress?.('OpenAI processing failed. Starting local AI...');
-        },
-      ),
-      timeRemaining(),
-    );
+    let analysis: Awaited<ReturnType<typeof analyzeDocumentFile>>;
+    try {
+      analysis = await withTimeout(analyzeDocumentFile(file), timeRemaining());
+      extractedText = analysis.extractedText?.trim() || analysis.summary;
+      onProgress?.('Analyse serveur terminée. Enregistrement des résultats…');
+    } catch (serverError) {
+      console.warn('Analyse directe du fichier indisponible, utilisation du traitement local de secours.', serverError);
+      onProgress?.('Serveur indisponible. Lecture locale de secours…');
+      if (file.type === PDF_MIME_TYPE || file.name.toLowerCase().endsWith('.pdf')) extractedText = await withTimeout(extractTextFromPdf(file, onProgress), timeRemaining());
+      else if (IMAGE_MIME_TYPES.includes(file.type)) extractedText = await withTimeout(extractTextFromImage(file, onProgress), timeRemaining());
+      else if (file.type === DOCX_MIME_TYPE || file.name.toLowerCase().endsWith('.docx')) extractedText = await withTimeout(extractTextFromDocx(file), timeRemaining());
+      else if (file.type.startsWith('text/')) extractedText = await withTimeout(extractTextFromFile(file), timeRemaining());
+      const readableWords = extractedText.match(/\p{L}{2,}/gu) || [];
+      if (readableWords.length < 5) throw serverError;
+      await updateDoc(documentRef, { ocr_status: 'completed', ai_status: 'processing', updated_at: new Date().toISOString() });
+      analysis = await withTimeout(getProvider().analyze(extractedText, () => {
+        usedLocalAI = true;
+        onProgress?.('Analyse OpenAI indisponible. Utilisation de l’IA locale…');
+      }), timeRemaining());
+    }
+    await updateDoc(documentRef, { ocr_status: 'completed', ai_status: 'processing', updated_at: new Date().toISOString() });
     const tags = analysis.tags.map((name) => ({ tag_id: name.toLowerCase(), tags: { id: name.toLowerCase(), user_id: userId, name, color: 'blue', created_at: now } }));
     const metadata = { id: documentRef.id, document_id: documentRef.id, document_type: analysis.documentType, confidence: analysis.confidence, issuer: analysis.issuer, issue_date: analysis.issueDate, expiration_date: analysis.expirationDate, amount: analysis.amount, currency: analysis.currency, fields: analysis.fields, created_at: now };
     const aiProvider = usedLocalAI ? 'local' : 'openai';

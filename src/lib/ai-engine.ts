@@ -14,6 +14,7 @@ export interface AIAnalysisResult {
   tags: string[];
   keywords: string[];
   language: string;
+  extractedText?: string;
 }
 
 export interface AIChatResult {
@@ -500,6 +501,22 @@ class OpenAIProvider implements AIProvider {
     return result.analysis;
   }
 
+  async analyzeFile(file: File): Promise<AIAnalysisResult> {
+    if (file.size > 20 * 1024 * 1024) throw new Error('Le fichier dépasse la limite de 20 Mo pour l’analyse serveur.');
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    let binary = '';
+    const chunkSize = 0x8000;
+    for (let offset = 0; offset < bytes.length; offset += chunkSize) {
+      binary += String.fromCharCode(...bytes.subarray(offset, offset + chunkSize));
+    }
+    const result = await this.request<{ analysis: AIAnalysisResult }>('/api/ai/analyze-file', {
+      filename: file.name,
+      mimeType: file.type || 'application/octet-stream',
+      fileData: btoa(binary),
+    });
+    return result.analysis;
+  }
+
   async chat(question: string, documentText: string, summary: string): Promise<AIChatResult> {
     return this.request<AIChatResult>('/api/ai/chat', {
       question,
@@ -536,6 +553,10 @@ class PrimaryAIProvider implements AIProvider {
 }
 
 const primaryProvider = new PrimaryAIProvider();
+
+export async function analyzeDocumentFile(file: File): Promise<AIAnalysisResult> {
+  return openaiProvider.analyzeFile(file);
+}
 
 export const aiProviders: Record<string, AIProvider> = {
   primary: primaryProvider,
