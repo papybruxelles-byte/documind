@@ -1,6 +1,5 @@
 import { getProvider } from '@/lib/ai-engine';
 import * as pdfjs from 'pdfjs-dist';
-import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.mjs?url';
 import { createWorker } from 'tesseract.js';
 import mammoth from 'mammoth';
 import { collection, deleteDoc, doc as firestoreDoc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
@@ -8,7 +7,9 @@ import { deleteObject, ref, uploadBytes } from 'firebase/storage';
 import { db, storage } from '@/lib/firebase';
 import { getDocumentWorkflow } from '@/lib/document-workflows';
 
-pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
+// The production host serves .mjs as text/plain, so expose the ESM worker with a
+// stable .js URL that receives the correct JavaScript MIME type.
+pdfjs.GlobalWorkerOptions.workerSrc = `${import.meta.env.BASE_URL.replace(/\/?$/, '/')}pdfjs/pdf.worker.js`;
 
 export function extractTextFromFile(file: File): Promise<string> {
   return new Promise((resolve) => {
