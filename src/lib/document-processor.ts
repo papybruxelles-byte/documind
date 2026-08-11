@@ -26,6 +26,7 @@ const PDF_MIME_TYPE = 'application/pdf';
 const DOCX_MIME_TYPE = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 const MAX_OCR_PAGES = 20;
 const PROCESSING_TIMEOUT_MS = 3 * 60 * 1000;
+const OCR_ASSET_BASE = `${import.meta.env.BASE_URL.replace(/\/?$/, '/')}tesseract`;
 
 function withTimeout<T>(promise: Promise<T>, milliseconds: number): Promise<T> {
   return new Promise<T>((resolve, reject) => {
@@ -348,11 +349,19 @@ async function extractTextFromImage(file: File, onProgress?: (stage: string) => 
 }
 
 async function createFrenchFirstOcrWorker() {
+  const options = {
+    workerPath: `${OCR_ASSET_BASE}/worker.min.js`,
+    corePath: `${OCR_ASSET_BASE}/tesseract-core-lstm.wasm.js`,
+    langPath: `${OCR_ASSET_BASE}/lang`,
+    workerBlobURL: false,
+    gzip: true,
+    errorHandler: (error: unknown) => console.error('Erreur du moteur OCR local.', error),
+  };
   try {
-    return await createWorker(['fra', 'eng']);
+    return await createWorker(['fra', 'eng'], undefined, options);
   } catch (error) {
     console.warn('Le modèle OCR français est indisponible, utilisation du modèle anglais.', error);
-    return createWorker('eng');
+    return createWorker('eng', undefined, options);
   }
 }
 
