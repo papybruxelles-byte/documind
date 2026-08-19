@@ -25,6 +25,8 @@ const app = express();
 const defaultAllowedOrigins = [
   'https://signataire.com',
   'https://www.signataire.com',
+   'https://papydoc.com',
+  'https://www.papydoc.com',
   'http://localhost:5173',
 ];
 const configuredAllowedOrigins = (process.env.ALLOWED_ORIGINS || '').split(',');
